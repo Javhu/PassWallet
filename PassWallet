@@ -1,0 +1,195 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+'''
+密码钱包
+'''
+
+import sys
+import getopt
+import random
+import string
+import json
+
+settings = {
+    'pass_len': 16,
+    'user_name': '储巍',
+    'pass_from_dic_keys': 'ldp',
+    'pass_from_dic': {
+        'l': string.ascii_letters,
+        'd': string.digits,
+        'p': '!@#$%^&*()_+-='
+    },
+    'pass_from': string.ascii_letters + string.digits + '!@#$%^&*()_+-=',
+    'file_name': sys.path[0] + '/password.pw'
+}
+pass_list = []
+
+
+class PassEntity(object):
+    def __init__(self, app, username, password, tags):
+        self.app = app
+        self.username = username
+        self.password = password
+        self.tags = tags
+
+    @staticmethod
+    def json2entity(j):
+        return PassEntity(str(j['app']), str(j['username']), str(j['password']), str(j['tags']))
+
+    @staticmethod
+    def entity2json(e):
+        return json.dumps(obj=e.__dict__, ensure_ascii=False)
+
+
+def generate():
+    print('生成密码咯...')
+    while True:
+        p = []
+        for i in range(settings['pass_len']):
+            p.append(random.choice(settings['pass_from']))
+        password = ''.join(p)
+        print(f'随机密码为：\n\t{password}')
+        c = input('是否继续（回车继续，s保存，其他输入退出）: ')
+        if c == 's':
+            app = input('\t输入APP名称：')
+            username = input('\t输入登录名称：')
+            tags = input('\t输入标签（,分隔）：')
+            if not app or not username or not password:
+                print('APP名称、登录名称、密码均不能为空！')
+            openfile()
+            flag = True
+            for entity in pass_list:
+                if entity.app == app and entity.username == username:
+                    entity.password = password
+                    if tags:
+                        entity.tags = tags
+                    flag = False
+                    break
+            if flag:
+                entity = PassEntity(app, username, password, tags)
+                pass_list.append(entity)
+
+            savefile()
+
+            c = input('是否继续（回车继续，其他输入退出）: ')
+            if c:
+                break
+        elif c:
+            break
+
+
+def query():
+    print('查询密码咯...')
+    openfile()
+    while True:
+        result = []
+        search = input('\t输入查询内容：')
+        for entity in pass_list:
+            if search in entity.app or search in entity.username:
+                result.append(entity)
+            else:
+                for tag in entity.tags.split(','):
+                    if tag == search:
+                        result.append(entity)
+                        break
+        print('查询结果列表：')
+        for entity in result:
+            print(f'\t{PassEntity.entity2json(entity)}')
+
+        c = input('是否继续（回车继续，其他输入退出）: ')
+        if c:
+            break
+
+
+def save():
+    print('保存密码咯...')
+    openfile()
+    while True:
+        app = input('\t输入APP名称：')
+        username = input('\t输入登录名称：')
+        password = input('\t输入密码：')
+        tags = input('\t输入标签（,分隔）：')
+        if not app or not username or not password:
+            print('APP名称、登录名称、密码均不能为空！')
+
+        flag = True
+        for entity in pass_list:
+            if entity.app == app and entity.username == username:
+                entity.password = password
+                if tags:
+                    entity.tags = tags
+                flag = False
+                break
+
+        if flag:
+            entity = PassEntity(app, username, password, tags)
+            pass_list.append(entity)
+
+        c = input('是否继续（回车继续，其他输入退出）: ')
+        if c:
+            break
+
+    savefile()
+
+
+def openfile():
+    try:
+        file = open(settings['file_name'], 'r')
+        for line in file:
+            pass_entity = PassEntity.json2entity(json.loads(line))
+            pass_list.append(pass_entity)
+    except FileNotFoundError:
+        print(f'文件{settings["file_name"]}不存在')
+    else:
+        file.close()
+
+
+def savefile():
+    try:
+        file = open(settings['file_name'], 'w')
+        for entity in pass_list:
+            file.write(PassEntity.entity2json(entity) + '\n')
+    except IOError:
+        print(f'文件{settings["file_name"]}写入错')
+    else:
+        file.close()
+
+
+def main(argv=None):
+    try:
+        opts, args = getopt.getopt(argv, 'hgqsl:f:', ['pass_len=', 'pass_from='])
+    except getopt.GetoptError:
+        print('PassEntity.py -h[g,q,s] -l <pass_len> -f <pass_from>')
+        sys.exit(2)
+
+    func = 'g'
+    for opt, arg in opts:
+        if opt == '-h':
+            print('PassEntity.py -h[g,q,s] -l <pass_len> -f <pass_from>')
+            sys.exit()
+        elif opt in ('-g', '-q', '-s'):
+            func = opt[1:]
+        elif opt in ("-l", "--pass_len"):
+            settings['pass_len'] = arg
+        elif opt in ("-f", "--pass_from"):
+            fro = ''
+            for f in arg:
+                if f in settings['pass_from_dic_keys']:
+                    fro += settings['pass_from_dic'][f]
+                else:
+                    fro += f
+            settings['pass_from'] = fro
+
+    switch = {
+        'g': generate,
+        'q': query,
+        's': save
+    }
+    method = switch.get(func)
+    if method:
+        method()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
